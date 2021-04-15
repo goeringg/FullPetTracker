@@ -29,15 +29,6 @@ public class PetDatabaseHelper extends SQLiteOpenHelper {
                 + "petLong DOUBLE);";
         sqLiteDatabase.execSQL(query);
 
-        ContentValues dataValues = new ContentValues();
-        dataValues.put("name", "Buster");
-        dataValues.put("type", "dog");
-        dataValues.put("drawable", "drawing stuff");
-        dataValues.put("homeLat", 0);
-        dataValues.put("homeLong", 0);
-        dataValues.put("petLat", 0);
-        dataValues.put("petLong", 0);
-        sqLiteDatabase.insert("pets", null, dataValues);
     }
 
     public void insertData(PetEntry petEntry){

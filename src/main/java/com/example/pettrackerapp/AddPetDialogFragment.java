@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -24,6 +25,8 @@ public class AddPetDialogFragment extends DialogFragment implements View.OnClick
     private EditText editTextType;
     private Button buttonAdd;
     private Button buttonCancel;
+    private PetDatabaseHelper petDatabaseHelper;
+    SQLiteDatabase sqLiteDatabase;
 
     public AddPetDialogFragment(){
 
@@ -46,7 +49,7 @@ public class AddPetDialogFragment extends DialogFragment implements View.OnClick
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-
+        petDatabaseHelper = new PetDatabaseHelper(getContext());
         editTextName = view.findViewById(R.id.editPetName);
         editTextType = view.findViewById(R.id.editTextType);
         buttonAdd = view.findViewById(R.id.buttonAdd);
@@ -66,8 +69,13 @@ public class AddPetDialogFragment extends DialogFragment implements View.OnClick
         switch(view.getId()){
             case R.id.buttonAdd:
                 Intent intent = new Intent(getActivity(), MainActivity.class);
-                intent.putExtra("name", editTextName.getText().toString());
-                intent.putExtra("type", editTextType.getText().toString());
+                if(editTextName.getText().toString().equals("") || editTextType.getText().toString().equals("")){
+                    Toast.makeText(getContext(), "Must fill out all info to add a pet", Toast.LENGTH_LONG).show();
+                }
+                else{
+                    PetEntry petEntry = new PetEntry(editTextName.getText().toString(), editTextType.getText().toString());
+                    petDatabaseHelper.insertData(petEntry);
+                }
                 startActivity(intent);
                 break;
             case R.id.buttonCancel:

@@ -4,6 +4,7 @@ public class PetEntry {
 
     String name;
     String type;
+    int homeLatitude, homeLongitude;
 
     public PetEntry(String name, String type){
         this.name = name;
@@ -24,5 +25,10 @@ public class PetEntry {
 
     public void setType(String type){
         this.type = type;
+    }
+
+    public void setHomeLatLng(int lat, int longitude){
+        this.homeLatitude = lat;
+        this.homeLongitude = longitude;
     }
 }

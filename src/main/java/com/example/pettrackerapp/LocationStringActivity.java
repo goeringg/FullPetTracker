@@ -3,14 +3,18 @@ package com.example.pettrackerapp;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.fragment.app.FragmentManager;
 
 import android.Manifest;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.Drawable;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
@@ -20,11 +24,19 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.os.Message;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.widget.Toast;
 
 import com.ftdi.j2xx.D2xxManager;
 import com.ftdi.j2xx.FT_Device;
+import com.google.android.gms.common.api.Api;
+import com.google.android.gms.common.api.GoogleApi;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -33,13 +45,19 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.tasks.OnSuccessListener;
 
 import java.util.HashMap;
 import java.util.Iterator;
 
+import static com.ftdi.j2xx.D2xxManager.FT_PURGE_RX;
 import static java.lang.Thread.sleep;
 
 public class LocationStringActivity extends AppCompatActivity implements OnMapReadyCallback {
+
+    String name;
+    String type;
+    int id;
 
     GoogleMap map;
     Marker petMarker;
@@ -57,6 +75,8 @@ public class LocationStringActivity extends AppCompatActivity implements OnMapRe
 
     Handler locationHandler;
     LocationHandlerThread locationHandlerThread;
+    public com.google.android.gms.location.FusedLocationProviderClient fusedLocationClient;
+    LatLng currentLocation;
 
     Toast toast;
     int iavailable = 0;
@@ -87,8 +107,19 @@ public class LocationStringActivity extends AppCompatActivity implements OnMapRe
                                 toast.show();
 
                                 ftDev.setBaudRate(9600);
-                                //locationHandlerThread = new LocationHandlerThread("name");
-                                //locationHandlerThread.start();
+                                ftDev.close();
+                                ftD2xx = D2xxManager.getInstance(serial_context);
+                                ftD2xx.createDeviceInfoList(serial_context);
+
+                                ftDev = ftD2xx.openByIndex(serial_context, 0);
+
+                                toast = Toast.makeText(getApplicationContext(), "connected", Toast.LENGTH_LONG);
+
+                                toast.show();
+
+                                ftDev.setBaudRate(9600);
+                                locationHandlerThread = new LocationHandlerThread("name");
+                                locationHandlerThread.start();
 
                             } catch (D2xxManager.D2xxException e) {
                                 e.printStackTrace();
@@ -96,8 +127,7 @@ public class LocationStringActivity extends AppCompatActivity implements OnMapRe
                                 toast.show();
                             }
                         }
-                    }
-                    else{
+                    } else {
 
                     }
                 }
@@ -108,80 +138,90 @@ public class LocationStringActivity extends AppCompatActivity implements OnMapRe
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+
         setContentView(R.layout.activity_location_string);
+        Intent intent = getIntent();
+        id = intent.getIntExtra("_id", 0);
+        name = intent.getStringExtra("name");
+        type = intent.getStringExtra("type");
 
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.mapFragment);
         mapFragment.getMapAsync(this);
         mLocationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            String[] permissions = {Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION};
-            ActivityCompat.requestPermissions(this, permissions, 1);
-
+            return;
         }
 
         locationListener = new LocationListener() {
             @Override
             public void onLocationChanged(@NonNull Location location) {
                 LatLng phoneLocation = new LatLng(location.getLatitude(), location.getLongitude());
+                phoneMarker.setVisible(true);
                 phoneMarker.setPosition(phoneLocation);
-
             }
         };
 
         serial_context = getApplicationContext();
-
 
         manager = (UsbManager) getSystemService(Context.USB_SERVICE);
         permissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
         IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
         registerReceiver(usbReceiver, filter);
 
-        /*HashMap<String, UsbDevice> deviceList = manager.getDeviceList();
+        HashMap<String, UsbDevice> deviceList = manager.getDeviceList();
         Iterator<UsbDevice> deviceIterator = deviceList.values().iterator();
-        while(deviceIterator.hasNext()){
+        while (deviceIterator.hasNext()) {
             device = deviceIterator.next();
 
         }
-        if(device!=null){
+        if (device != null) {
             manager.requestPermission(device, permissionIntent);
 
             connection = manager.openDevice(device);
 
-            //SerialReadAsyncTask serialReadAsyncTask = new SerialReadAsyncTask();
-            //serialReadAsyncTask.execute("");
-            //run thread task
-        }*/
+        }
+        else{
+            toast = Toast.makeText(getApplicationContext(), "No Radio Device Connected To Phone", Toast.LENGTH_LONG);
+            toast.show();
+        }
 
-        locationHandler = new Handler(){
+        locationHandler = new Handler() {
             @Override
             public void handleMessage(@NonNull Message msg) {
                 Bundle bundle = msg.getData();
                 Double latitude = bundle.getDouble("lat");
                 Double longitude = bundle.getDouble("long");
                 LatLng location = new LatLng(latitude, longitude);
-                petMarker.setPosition(location);
+                if (latitude != 10000 && longitude != 10000) {
+                    petMarker.setVisible(true);
+                    petMarker.setPosition(location);
+                }
             }
         };
 
-        mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 10000, 1, locationListener);
+        mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 1, locationListener);
     }
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
         map = googleMap;
         LatLng gunnison = new LatLng(38.5, -106.5);
-        map.moveCamera( CameraUpdateFactory.newLatLngZoom(gunnison , 14.0f));
+        map.moveCamera(CameraUpdateFactory.newLatLngZoom(gunnison, 1));
+        int drawable = 0;
+        if(type.equals("cat") || type.equals("CAT") || type.equals("Cat")){
+            drawable = R.drawable.cat;
+        } else if(type.equals("dog") || type.equals("DOG") || type.equals("Dog")){
+            drawable = R.drawable.dog;
+        } else{
+            drawable = R.drawable.pet;
+        }
         petMarker = map.addMarker(new MarkerOptions().position(new LatLng(13,0)).title("pet")
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)));
+                .icon(BitmapDescriptorFactory.fromResource(drawable)));
         phoneMarker = map.addMarker(new MarkerOptions().position(gunnison).title("phone")
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
+                .icon(BitmapDescriptorFactory.fromResource(R.drawable.phone)));
+        petMarker.setVisible(false);
+
     }
 
     public class LocationHandlerThread extends HandlerThread {
@@ -194,7 +234,6 @@ public class LocationStringActivity extends AppCompatActivity implements OnMapRe
         public void run() {
             while (true) {
                 iavailable = ftDev.getQueueStatus();
-
                 if (iavailable > 0) {
                     if (iavailable > readLength) {
                         iavailable = readLength;
@@ -202,31 +241,33 @@ public class LocationStringActivity extends AppCompatActivity implements OnMapRe
                 }
                 readData = new byte[readLength];
                 readDataToText = new char[readLength];
+                ftDev.purge(FT_PURGE_RX);
                 ftDev.read(readData, iavailable);
                 for (int i = 0; i < iavailable; i++) {
                     readDataToText[i] = (char) readData[i];
                 }
-
-                //toast = Toast.makeText(getApplicationContext(), Arrays.toString(readDataToText), Toast.LENGTH_SHORT);
-                //toast.show();
                 String locationString = new String(readDataToText);
 
-                //String locationString = Arrays.toString(readDataToText);
-                //locationString = locationString.substring(1, locationString.length()-1);
-                //textView.setText(locationString);
-
-                //Grayson's code to be written here!
-
                 String[] petLocationArray = locationString.split("/");
-
-                double petLat;
-                double petLong;
+                double petLat = 10000;
+                double petLong = 10000;
                 if (petLocationArray.length != 2) {
-                    petLat = 33.72002356224238;
-                    petLong = -39.08091233839987;
-                } else {
-                    petLat = Double.parseDouble(petLocationArray[0]);
-                    petLong = Double.parseDouble(petLocationArray[1]);
+                    petLat = 10000;
+                    petLong = 10000;
+                }
+                else if(petLocationArray.length == 2) {
+                    try {
+                        petLat = Double.parseDouble(petLocationArray[0]);
+                        petLong = Double.parseDouble(petLocationArray[1]);
+                    }
+                    catch(NumberFormatException e){
+                        petLat = 10000;
+                        petLong = 10000;
+                    }
+                }
+                if(petLat < -90 || petLat > 90 || petLong <-180 || petLong > 180){
+                    petLat = 10000;
+                    petLong = 10000;
                 }
                 Message message = new Message();
                 Bundle bundle = new Bundle();
@@ -240,9 +281,18 @@ public class LocationStringActivity extends AppCompatActivity implements OnMapRe
                     e.printStackTrace();
                 }
             }
-
         }
+    }
 
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        PackageManager packageManager = this.getPackageManager();
+        Intent intent = packageManager.getLaunchIntentForPackage(this.getPackageName());
+        ComponentName componentName = intent.getComponent();
+        Intent mainIntent = Intent.makeRestartActivityTask(componentName);
+        this.startActivity(mainIntent);
+        Runtime.getRuntime().exit(0);
     }
 
     @Override
@@ -250,4 +300,6 @@ public class LocationStringActivity extends AppCompatActivity implements OnMapRe
         super.onDestroy();
         locationHandlerThread.quit();
     }
+
+
 }
